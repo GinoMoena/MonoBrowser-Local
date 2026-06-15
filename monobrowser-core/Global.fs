@@ -39,6 +39,9 @@ let mutable CodeColor = Color.Gray
 // Backgrounds for code / blockquote blocks. Read at draw time.
 let mutable CodeBackground = Color(245, 247, 249)
 let mutable BlockquoteBackground = Color.Beige
+// Scrollbar track (the rail) and thumb (the draggable bar). Read at draw time.
+let mutable ScrollbarTrackColor = Color(245, 245, 245)
+let mutable ScrollbarThumbColor = Color.Gray
 
 // ---- Font sizes in px. Glyphs are rasterized once on load, so set these BEFORE Initialize. ----
 let mutable FontSize = 20f

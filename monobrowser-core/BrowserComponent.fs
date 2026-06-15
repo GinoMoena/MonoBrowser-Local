@@ -102,6 +102,8 @@ type BrowserComponent(game, window:Rectangle) as x =
     member x.CodeColor with set (c:Color) = Global.CodeColor <- c
     member x.CodeBackground with set (c:Color) = Global.CodeBackground <- c
     member x.BlockquoteBackground with set (c:Color) = Global.BlockquoteBackground <- c
+    member x.ScrollbarTrackColor with set (c:Color) = Global.ScrollbarTrackColor <- c
+    member x.ScrollbarThumbColor with set (c:Color) = Global.ScrollbarThumbColor <- c
 
     /// Light text palette on a dark page (the page background itself is set separately via
     /// BackgroundColor). Set before Navigate so text colors are baked correctly.
@@ -112,6 +114,9 @@ type BrowserComponent(game, window:Rectangle) as x =
         Global.CodeColor <- Color(0xC8, 0xD3, 0xE0)
         Global.CodeBackground <- Color(0x28, 0x2C, 0x34)
         Global.BlockquoteBackground <- Color(0x2D, 0x30, 0x38)
+        Global.BackgroundColor <- Color(0x1B, 0x1F, 0x28)
+        Global.ScrollbarTrackColor <- Color(0x2D, 0x30, 0x38)
+        Global.ScrollbarThumbColor <- Color(0x6A, 0x71, 0x80)
 
     // ---- Font sizes (px) ----
     // Glyphs are rasterized once during LoadContent, so set these BEFORE Initialize.
@@ -131,6 +136,9 @@ type BrowserComponent(game, window:Rectangle) as x =
         Global.CodeColor <- Color.Gray
         Global.CodeBackground <- Color(245, 247, 249)
         Global.BlockquoteBackground <- Color.Beige
+        Global.BackgroundColor <- Color.White
+        Global.ScrollbarTrackColor <- Color(245, 245, 245)
+        Global.ScrollbarThumbColor <- Color.Gray
 
     /// Furthest the page can scroll, including the extra bottom padding so the last line
     /// can clear the bottom edge.
@@ -409,8 +417,8 @@ type BrowserComponent(game, window:Rectangle) as x =
             let steps = Math.Round((float Global.ContentHeight - float window.Height - float window.Y) / float 40) + 1.0
             let thick = (float window.Height / steps)
             let scroller_y = (float thick) * Math.Round(float camera.Position.Y / float 40)
-            filledRect.Draw(spriteBatch, Rectangle(window.Right + 2, window.Top + 3, 8, window.Height - 5), ColorHelper.FromHex("#f5f5f5"))
-            filledRect.Draw(spriteBatch, Rectangle(window.Right + 2, window.Top + int scroller_y, 8, int thick), Color.Gray)
+            filledRect.Draw(spriteBatch, Rectangle(window.Right - 10, window.Top + 3, 8, window.Height - 5), Global.ScrollbarTrackColor)
+            filledRect.Draw(spriteBatch, Rectangle(window.Right - 10, window.Top + int scroller_y, 8, int thick), Global.ScrollbarThumbColor)
          
         
         
