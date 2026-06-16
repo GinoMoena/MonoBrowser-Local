@@ -74,6 +74,13 @@ type BrowserComponent(game, window:Rectangle) as x =
     // set when a new page loads (off-thread) so Update can reset scroll on the game thread
     let mutable pendingScrollReset = false
 
+    // A page fetched on the loader thread (I/O only) waiting to be built on the game thread.
+    // Layout measures glyphs through DynamicSpriteFont, which is not thread-safe, so the build
+    // must happen in Update — never on the loader thread that runs alongside Draw. Last write
+    // wins, so rapid navigation just builds the most recent page. Guarded by pendingLock.
+    let pendingLock = obj()
+    let mutable pendingPage : (Book.FetchedPage * BrowserUrl) option = None
+
     member x.EnableScrollbar with set (value) = isScrollbarVisible <- value
     
     member x.EnableNavbar with set (value) = isNavbarEnabled <- value
@@ -261,19 +268,33 @@ type BrowserComponent(game, window:Rectangle) as x =
     
    
         
-    member private x.LoadPage(payload:BrowserUrl, forceRefresh:bool) =
+    /// Fetch a page on a background thread (file/network read + cache lookup only — no font
+    /// work) and hand it to Update via pendingPage, which builds it on the game thread.
+    member private x.BeginLoad(payload:BrowserUrl, forceRefresh:bool) =
+        loadingThread <- Thread(ParameterizedThreadStart(fun _ ->
+            try
+                let fetched =
+                    match payload with
+                    | FromRemote url  -> Book.Fetch(url, false, false, forceRefresh)
+                    | FromLocal path  -> Book.Fetch(path, true, false, forceRefresh)
+                    | FromString text -> Book.FetchString(text)
+                lock pendingLock (fun () -> pendingPage <- Some(fetched, payload))
+            with e ->
+                Debug.WriteLine($"[MonoBrowser] page load failed: {e.Message}")))
+        loadingThread.IsBackground <- true
+        loadingThread.Start()
+
+    /// Lay out (font-measure) a fetched page and swap it in. MUST run on the game thread:
+    /// DynamicSpriteFont's glyph cache is not thread-safe, so this cannot share a thread with
+    /// Draw. Building before clearing keeps the current page on screen if the build throws.
+    member private x.ApplyPage(fetched:Book.FetchedPage, payload:BrowserUrl) =
+
+        let data = Book.Build(fetched)
 
         Global.Page.Clear()
 
-        let data = match payload with
-                    | FromRemote url -> Book.GetPage(url, false, false, forceRefresh)
-                    | FromLocal localFile -> Book.GetPage(localFile, true, false, forceRefresh)
-                    | FromString text -> Book.GetFromString(text)
-
         for item in data.Children do
             Global.Page.Add(item)
-
-        //Builder.showTree (None) (page1) (0)
 
         // Resync content height after loading a new page so scroll can be clamped correctly.
         Global.ContentHeight <- data.Outline.Height
@@ -283,9 +304,9 @@ type BrowserComponent(game, window:Rectangle) as x =
         isActive <- true
 
         let info = match payload with
-                    | FromRemote url -> "Link"
-                    | FromLocal localFile -> "Local file"
-                    | FromString text -> "Content"
+                    | FromRemote _ -> "Link"
+                    | FromLocal _ -> "Local file"
+                    | FromString _ -> "Content"
 
         pageLoadedEvent.Trigger(null, info)
 
@@ -295,26 +316,35 @@ type BrowserComponent(game, window:Rectangle) as x =
     member x.Close() =
         isActive <- false
         Global.Page.Clear()
+        lock pendingLock (fun () -> pendingPage <- None)
         loadingThread <- null
-        
-    
+
+
     member x.FromString(text:string) =
-        loadingThread <- Thread(ParameterizedThreadStart(fun _ -> x.LoadPage(BrowserUrl.FromString(text), false)))
-        loadingThread.Start()
+        x.BeginLoad(BrowserUrl.FromString(text), false)
 
     /// Load remote file into the window
     member x.Navigate(url:string) =
-        loadingThread <- Thread(ParameterizedThreadStart(fun _ -> x.LoadPage(BrowserUrl.FromRemote(url), false)))
-        loadingThread.Start()
-        
+        x.BeginLoad(BrowserUrl.FromRemote(url), false)
+
 
     /// Load local file
     member x.LoadFile(path:string) =
-        loadingThread <- Thread(ParameterizedThreadStart(fun _ -> x.LoadPage(BrowserUrl.FromLocal(path), false)))
-        loadingThread.Start()
+        x.BeginLoad(BrowserUrl.FromLocal(path), false)
 
 
     override x.Update(gameTime) =
+
+        // Build any freshly-fetched page here, on the game thread: layout calls MeasureString,
+        // and DynamicSpriteFont's glyph cache is corrupted if that runs alongside Draw. Done
+        // before the isActive gate so the very first page can flip isActive on.
+        let toApply = lock pendingLock (fun () ->
+                          let p = pendingPage
+                          pendingPage <- None
+                          p)
+        match toApply with
+        | Some(fetched, payload) -> x.ApplyPage(fetched, payload)
+        | None -> ()
 
         // skip all input/scroll work while there is no active page
         if isActive then
@@ -324,9 +354,7 @@ type BrowserComponent(game, window:Rectangle) as x =
             // F5 reloads the current page, bypassing the cache
             if refreshBtn.Pressed() && isDebugAllowed then
                 match lastPayload with
-                | Some payload ->
-                    loadingThread <- Thread(ParameterizedThreadStart(fun _ -> x.LoadPage(payload, true)))
-                    loadingThread.Start()
+                | Some payload -> x.BeginLoad(payload, true)
                 | None -> ()
 
             if debug.Pressed() && isDebugAllowed then
