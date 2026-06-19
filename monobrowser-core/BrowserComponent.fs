@@ -96,6 +96,10 @@ type BrowserComponent(game, window:Rectangle) as x =
     /// Allow images for remote documents. Warning: the app will download and resize images for Texture2D
     member x.DisableImages with set value = Global.AllowImages <- not(value)
 
+    /// Uniform display scale for markdown images (1.0 = native file size; e.g. 0.65 shrinks them).
+    /// Aspect ratio is preserved. Baked into the page when parsed, so set it before Navigate.
+    member x.ImageScale with set (v:float32) = Global.ImageScale <- max 0.05f v
+
     // ---- Theme ----
     // BackgroundColor / *Background read at draw time (change anytime). Text colors are baked
     // into the page when it is parsed, so set them BEFORE Navigate to take effect.

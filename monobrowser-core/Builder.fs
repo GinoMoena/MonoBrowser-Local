@@ -90,10 +90,16 @@ let createChildNodesWithPrepend (nodes: INodeList, maxWidth: int, font: string, 
 
                     let size = ImageLoader.GetImageSize(src)
 
+                    // Scale the displayed size uniformly (keeps aspect ratio). The texture keeps
+                    // its full resolution (downscaled into this smaller rect at draw time), so
+                    // shrinking here costs no sharpness.
+                    let scaledWidth = int (float32 size.Width * Global.ImageScale)
+                    let scaledHeight = int (float32 size.Height * Global.ImageScale)
+
                     let imageEl =
                         mkElement { defaults with
                                         Tag = "IMG"
-                                        Outline = Rectangle(0, 0, size.Width, size.Height)
+                                        Outline = Rectangle(0, 0, scaledWidth, scaledHeight)
                                         Payload = IMG(src)
                                         Margin = { BoxPad.Zero with Top = 20; Bottom = 20 } }
 

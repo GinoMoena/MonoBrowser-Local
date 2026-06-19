@@ -27,6 +27,11 @@ let mutable IsDebug = false
 
 let mutable AllowImages = true
 
+// Uniform display scale applied to every markdown image (keeps aspect ratio). 1.0 = native
+// file size; smaller shrinks images so they sit better next to text. Baked at parse time
+// (the image's laid-out size), so set it before Navigate. Read in Builder when sizing IMG nodes.
+let mutable ImageScale = 1.0f
+
 // ---- Theme (light defaults) ----
 // Page background painted behind the document. Supports alpha (e.g. transparent or
 // semi-transparent black). Read at draw time, so it can change live.
