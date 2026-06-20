@@ -75,9 +75,11 @@ let PreloadImage(url:string, maxWidth:int) =
            
            let resize = ResizeOptions(Mode = ResizeMode.Max, Size = Size(maxWidth, 0))
 
-           // resize image if it larger than the browser window
-           if image.Width > maxWidth then do           
-               image.Mutate(fun x -> x.Resize(resize).BackgroundColor(Rgba32.ParseHex("#FFFFFF")) |> ignore)
+           // resize image if it larger than the browser window. Resize only — do NOT add a
+           // background color here: BackgroundColor composites over solid white and flattens the
+           // alpha channel, which is why wide transparent PNGs used to render on a white box.
+           if image.Width > maxWidth then do
+               image.Mutate(fun x -> x.Resize(resize) |> ignore)
            
            let encoder = PngEncoder(BitDepth = PngBitDepth.Bit16, ColorType = PngColorType.RgbWithAlpha)
            
